@@ -407,6 +407,13 @@ function renderSplitChart(data) {
   const { principal } = data.inputs;
   const { total_interest, total_paid } = data;
 
+  // Read live CSS custom-property values so colours adapt to dark/light theme
+  // without needing separate SVG override rules.
+  const cs         = getComputedStyle(document.documentElement);
+  const colText    = cs.getPropertyValue('--c-text').trim()   || '#1e293b';
+  const colMuted   = cs.getPropertyValue('--c-muted').trim()  || '#64748b';
+  const colBorder  = cs.getPropertyValue('--c-border').trim() || '#e2e8f0';
+
   // SVG donut geometry
   const r    = 52;    // ring radius
   const cx   = 68;   // SVG center x
@@ -433,7 +440,7 @@ function renderSplitChart(data) {
         <svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true">
           <!-- Background track -->
           <circle cx="${cx}" cy="${cy}" r="${r}"
-            fill="none" stroke="#e2e8f0" stroke-width="${sw}"/>
+            fill="none" stroke="${colBorder}" stroke-width="${sw}"/>
           <!-- Principal arc (blue) -->
           <circle cx="${cx}" cy="${cy}" r="${r}"
             fill="none" stroke="#2563eb" stroke-width="${sw}"
@@ -449,10 +456,10 @@ function renderSplitChart(data) {
           <!-- Center label -->
           <text x="${cx}" y="${cy - 7}" text-anchor="middle"
             font-family="Inter,system-ui,sans-serif" font-size="10.5"
-            font-weight="800" fill="#1e293b">${fmt(total_paid)}</text>
+            font-weight="800" fill="${colText}">${fmt(total_paid)}</text>
           <text x="${cx}" y="${cy + 9}" text-anchor="middle"
             font-family="Inter,system-ui,sans-serif" font-size="8.5"
-            fill="#64748b">Total Cost</text>
+            fill="${colMuted}">Total Cost</text>
         </svg>
       </div>
       <div class="split-chart-legend">
@@ -591,6 +598,12 @@ function renderBalanceChart(schedule, principal) {
   const container = document.getElementById('balance-chart-container');
   if (!container || !schedule.length) return;
 
+  // Read live CSS tokens — SVG presentation attributes don't resolve var()
+  const cs       = getComputedStyle(document.documentElement);
+  const colBorder  = cs.getPropertyValue('--c-border').trim()  || '#dde3ed';
+  const colMuted   = cs.getPropertyValue('--c-muted').trim()   || '#64748b';
+  const colSuccess = cs.getPropertyValue('--c-success').trim() || '#16a34a';
+
   // Chart canvas dimensions (coordinate space, not pixels — SVG scales)
   const W = 640, H = 220;
   const PAD = { top: 16, right: 20, bottom: 36, left: 72 };
@@ -631,9 +644,7 @@ function renderBalanceChart(schedule, principal) {
     return true;
   });
 
-  // Determine chart stroke colour from the CSS accent variable (matches theme)
-  const LINE_COLOR  = '#2563eb';
-  const LINE_COLOR2 = '#f59e0b';  // contrast line (unused here, kept for future)
+  const LINE_COLOR = '#2563eb';
 
   // Legend text
   const lastRow     = schedule[schedule.length - 1];
@@ -642,9 +653,9 @@ function renderBalanceChart(schedule, principal) {
   const svgYTick = yTicks.map(t => /* html */`
     <line x1="${PAD.left - 6}" y1="${t.y.toFixed(1)}"
           x2="${W - PAD.right}" y2="${t.y.toFixed(1)}"
-          stroke="var(--c-border)" stroke-width="1" stroke-dasharray="4 4"/>
+          stroke="${colBorder}" stroke-width="1" stroke-dasharray="4 4"/>
     <text x="${PAD.left - 10}" y="${(t.y + 4).toFixed(1)}"
-          text-anchor="end" fill="var(--c-muted)"
+          text-anchor="end" fill="${colMuted}"
           font-family="Inter,system-ui,sans-serif" font-size="10">
       ${t.bal >= 1000 ? '$' + Math.round(t.bal / 1000) + 'k' : '$0'}
     </text>`).join('');
@@ -652,15 +663,14 @@ function renderBalanceChart(schedule, principal) {
   const svgXTick = uniqueXTicks.map(t => /* html */`
     <line x1="${t.x.toFixed(1)}" y1="${PAD.top + CH}"
           x2="${t.x.toFixed(1)}" y2="${PAD.top + CH + 5}"
-          stroke="var(--c-border)" stroke-width="1"/>
+          stroke="${colBorder}" stroke-width="1"/>
     <text x="${t.x.toFixed(1)}" y="${PAD.top + CH + 18}"
-          text-anchor="middle" fill="var(--c-muted)"
+          text-anchor="middle" fill="${colMuted}"
           font-family="Inter,system-ui,sans-serif" font-size="10">
       Mo ${t.month}
     </text>`).join('');
 
   // Animated draw via stroke-dashoffset
-  // Approximate path length to animate (good enough for linear polyline)
   const approxLen = Math.sqrt(CW * CW + CH * CH) * 1.5;
 
   container.innerHTML = /* html */`
@@ -689,7 +699,7 @@ function renderBalanceChart(schedule, principal) {
                 r="4" fill="${LINE_COLOR}" opacity="0.85"/>
         <!-- End dot -->
         <circle cx="${toX(n - 1).toFixed(1)}" cy="${toY(0).toFixed(1)}"
-                r="4" fill="var(--c-success)" opacity="0.9"/>
+                r="4" fill="${colSuccess}" opacity="0.9"/>
       </svg>
       <p class="balance-chart-sub">Balance paid off after <strong>${payoffMonth} month${payoffMonth === 1 ? '' : 's'}</strong></p>
     </div>

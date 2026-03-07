@@ -146,6 +146,11 @@ body {
   background: linear-gradient(160deg, #0d1829 0%, #0f172a 55%, #0a1f17 100%);
 }
 
+/* Ensure explicit light-mode choice overrides OS dark preference */
+[data-theme="light"] body {
+  background: linear-gradient(160deg, #eef2ff 0%, #f0f4f8 55%, #ecfdf5 100%);
+}
+
 [data-theme="dark"] .amort-table tbody tr:nth-child(even):not(.row-highlight):not(.row-ellipsis) td {
   background: rgba(255,255,255,.03);
 }
@@ -490,6 +495,18 @@ body {
 .tip-box p {
   margin: 0;
   line-height: 1.55;
+}
+
+[data-theme="dark"] .tip-box {
+  background: #172554;
+  color: #93c5fd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .tip-box {
+    background: #172554;
+    color: #93c5fd;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════

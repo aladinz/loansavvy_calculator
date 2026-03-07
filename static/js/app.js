@@ -43,6 +43,9 @@ let showingFull   = false; // Whether the full table is visible
   if (saved === 'dark' || (!saved && prefersDark)) {
     document.documentElement.setAttribute('data-theme', 'dark');
     if (darkIcon) darkIcon.textContent = '☀️';
+  } else if (saved === 'light') {
+    // Explicitly mark light so the OS dark-mode media query is suppressed
+    document.documentElement.setAttribute('data-theme', 'light');
   }
 }());
 
@@ -50,7 +53,9 @@ if (darkToggle) {
   darkToggle.addEventListener('click', () => {
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     if (isDark) {
-      document.documentElement.removeAttribute('data-theme');
+      // Set 'light' explicitly — removing the attribute would let the OS media
+      // query reactivate dark tokens even though the user chose light mode.
+      document.documentElement.setAttribute('data-theme', 'light');
       if (darkIcon) darkIcon.textContent = '🌙';
       localStorage.setItem('loansavvy-theme', 'light');
     } else {

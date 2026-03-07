@@ -818,11 +818,18 @@ body {
 .site-footer {
   text-align: center;
   padding: var(--sp-5) var(--sp-8);
-  font-size: 0.78rem;
-  color: var(--c-subtle);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--c-muted);
   border-top: 1px solid var(--c-border);
   margin-top: auto;
   background: var(--c-surface);
+}
+
+.footer-sub {
+  font-size: 0.73rem;
+  color: var(--c-subtle);
+  margin-top: var(--sp-1);
 }
 
 /* ══════════════════════════════════════════════════════════════

@@ -100,6 +100,77 @@ body {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  transition: background-color 0.25s, color 0.25s;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Dark Mode Token Overrides
+   Applied when JS sets data-theme="dark" on <html>.
+   Also respects the OS preference via prefers-color-scheme.
+══════════════════════════════════════════════════════════════ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --c-bg:            #0f172a;
+    --c-surface:       #1e293b;
+    --c-border:        #334155;
+    --c-border-focus:  #3b82f6;
+    --c-text:          #f1f5f9;
+    --c-muted:         #94a3b8;
+    --c-subtle:        #64748b;
+    --c-accent-light:  #1e3a5f;
+    --c-accent-muted:  #1e40af;
+    --c-card-accent-bg:  #172554;
+    --c-card-success-bg: #052e16;
+    --c-card-warning-bg: #1c1408;
+    --c-danger-bg:       #2d0a0a;
+  }
+}
+
+[data-theme="dark"] {
+  --c-bg:            #0f172a;
+  --c-surface:       #1e293b;
+  --c-border:        #334155;
+  --c-border-focus:  #3b82f6;
+  --c-text:          #f1f5f9;
+  --c-muted:         #94a3b8;
+  --c-subtle:        #64748b;
+  --c-accent-light:  #1e3a5f;
+  --c-accent-muted:  #1e40af;
+  --c-card-accent-bg:  #172554;
+  --c-card-success-bg: #052e16;
+  --c-card-warning-bg: #1c1408;
+  --c-danger-bg:       #2d0a0a;
+}
+
+[data-theme="dark"] body {
+  background: linear-gradient(160deg, #0d1829 0%, #0f172a 55%, #0a1f17 100%);
+}
+
+[data-theme="dark"] .amort-table tbody tr:nth-child(even):not(.row-highlight):not(.row-ellipsis) td {
+  background: rgba(255,255,255,.03);
+}
+
+[data-theme="dark"] .amort-table tr.row-ellipsis td {
+  background: rgba(255,255,255,.02);
+}
+
+[data-theme="dark"] .amort-table thead {
+  background: rgba(255,255,255,.04);
+}
+
+[data-theme="dark"] .input-wrap,
+[data-theme="dark"] .field > input {
+  background: #1e293b;
+  color: var(--c-text);
+}
+
+[data-theme="dark"] .collapsible-trigger {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .edu-block {
+  background: #0f172a;
+  border-color: #334155;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -118,6 +189,26 @@ body {
   max-width: 1320px;
   margin: 0 auto;
   padding: var(--sp-4) var(--sp-8);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Dark mode toggle button in header */
+.btn-darkmode {
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+  color: inherit;
+}
+
+.btn-darkmode:hover {
+  background: rgba(255,255,255,.22);
 }
 
 .brand {
@@ -644,6 +735,12 @@ body {
   margin-bottom: 0;
 }
 
+.amort-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
 /* Toggle button */
 .btn-toggle {
   font-size: 0.8rem;
@@ -739,6 +836,39 @@ body {
   background: var(--c-bg);
   cursor: default;
   letter-spacing: 0.15em;
+}
+
+/* ── Balance over time line chart ─────────────────────── */
+.balance-chart-section {
+  margin-bottom: var(--sp-6);
+}
+
+.balance-chart {
+  background: var(--c-surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  padding: var(--sp-6) var(--sp-6) var(--sp-4);
+}
+
+.balance-chart-title {
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--c-text);
+  margin-bottom: var(--sp-4);
+}
+
+.balance-chart-sub {
+  font-size: 0.78rem;
+  color: var(--c-muted);
+  margin-top: var(--sp-3);
+  text-align: center;
+}
+
+.balance-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
 }
 
 /* ── Principal vs Interest split chart ─────────────────────── */

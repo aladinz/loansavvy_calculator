@@ -23,10 +23,92 @@ const amortBody      = document.getElementById('amortization-body');
 const toggleTableBtn = document.getElementById('toggle-table-btn');
 const optionalToggle = document.getElementById('optional-toggle');
 const optionalBody   = document.getElementById('optional-body');
+const exportCsvBtn   = document.getElementById('export-csv-btn');
+const darkToggle     = document.getElementById('darkmode-toggle');
+const darkIcon       = document.getElementById('darkmode-icon');
 
 // ── Module state ───────────────────────────────────────────────────────────────
 let fullSchedule  = [];  // Full amortization schedule from last API response
 let showingFull   = false; // Whether the full table is visible
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Dark Mode  (#7)
+// Reads saved preference or OS setting on load; toggled by header button.
+// Stores choice in localStorage as 'loansavvy-theme' → 'dark' | 'light'.
+// CSS variables are overridden by [data-theme="dark"] on <html>.
+// ══════════════════════════════════════════════════════════════════════════════
+(function initDarkMode() {
+  const saved       = localStorage.getItem('loansavvy-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (saved === 'dark' || (!saved && prefersDark)) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    if (darkIcon) darkIcon.textContent = '☀️';
+  }
+}());
+
+if (darkToggle) {
+  darkToggle.addEventListener('click', () => {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+      document.documentElement.removeAttribute('data-theme');
+      if (darkIcon) darkIcon.textContent = '🌙';
+      localStorage.setItem('loansavvy-theme', 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      if (darkIcon) darkIcon.textContent = '☀️';
+      localStorage.setItem('loansavvy-theme', 'dark');
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// URL-based sharing  (#1)
+// On page load: read query params and pre-fill the form.  If the three required
+// params are present the form is submitted automatically so recipients see
+// results immediately.
+// After each calculation: pushState encodes inputs into the URL so the page
+// can be bookmarked or shared.
+// ══════════════════════════════════════════════════════════════════════════════
+function loadFromURL() {
+  const p = new URLSearchParams(window.location.search);
+  const principal = p.get('principal');
+  const rate      = p.get('rate');
+  const years     = p.get('years');
+
+  if (principal) document.getElementById('principal').value    = principal;
+  if (rate)      document.getElementById('annual_rate').value  = rate;
+  if (years)     document.getElementById('years').value        = years;
+
+  const extra     = p.get('extra');
+  const lumpAmt   = p.get('lump_amount');
+  const lumpMonth = p.get('lump_month');
+  if (extra)     document.getElementById('extra_payment').value = extra;
+  if (lumpAmt)   document.getElementById('lump_amount').value   = lumpAmt;
+  if (lumpMonth) document.getElementById('lump_month').value    = lumpMonth;
+
+  // Auto-calculate if the required trio is present
+  if (principal && rate && years) {
+    form.requestSubmit();
+  }
+}
+
+/**
+ * Encodes current calc inputs into the browser URL without a page reload.
+ * @param {object} payload – the same object sent to the API.
+ */
+function pushURL(payload) {
+  const p = new URLSearchParams({
+    principal: payload.principal,
+    rate:      payload.annual_rate,
+    years:     payload.years,
+  });
+  if (payload.extra_payment) p.set('extra', payload.extra_payment);
+  if (payload.lump_sum) {
+    p.set('lump_amount', payload.lump_sum.amount);
+    p.set('lump_month',  payload.lump_sum.month);
+  }
+  history.pushState({}, '', '?' + p.toString());
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Optional parameters collapsible toggle
@@ -68,6 +150,7 @@ form.addEventListener('submit', async (e) => {
 
     const data = await response.json();
     renderResults(data);
+    pushURL(payload);
     setUIState('results');
 
   } catch (err) {
@@ -171,6 +254,9 @@ function renderResults(data) {
 
   // Amortization schedule table
   renderAmortizationTable(data.amortization_schedule);
+
+  // Balance over time line chart
+  renderBalanceChart(data.amortization_schedule, data.inputs.principal);
 
   // On mobile, scroll results panel into view
   if (window.innerWidth < 960) {
@@ -489,3 +575,156 @@ function clearError() {
   formError.textContent = '';
   formError.hidden = true;
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Balance over time line chart  (#3)
+// Draws an SVG polyline of remaining_balance across all months.
+// When extra payments shorten the loan, a faint dashed baseline (standard
+// schedule) is drawn underneath for comparison.
+// ══════════════════════════════════════════════════════════════════════════════
+function renderBalanceChart(schedule, principal) {
+  const container = document.getElementById('balance-chart-container');
+  if (!container || !schedule.length) return;
+
+  // Chart canvas dimensions (coordinate space, not pixels — SVG scales)
+  const W = 640, H = 220;
+  const PAD = { top: 16, right: 20, bottom: 36, left: 72 };
+  const CW = W - PAD.left - PAD.right;
+  const CH = H - PAD.top  - PAD.bottom;
+
+  const n     = schedule.length;
+  const maxBal = principal;
+
+  // Map a row to (x, y) in the chart coordinate space
+  const toX = (i) => PAD.left + (i / (n - 1 || 1)) * CW;
+  const toY = (bal) => PAD.top + CH - (bal / maxBal) * CH;
+
+  // Build polyline points string
+  const points = schedule
+    .map((r, i) => `${toX(i).toFixed(1)},${toY(r.remaining_balance).toFixed(1)}`)
+    .join(' ');
+
+  // Y-axis tick values (0%, 25%, 50%, 75%, 100% of principal)
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(pct => ({
+    bal: pct * maxBal,
+    y:   toY(pct * maxBal),
+  }));
+
+  // X-axis: show ~5 evenly-spaced month labels
+  const xTickCount = Math.min(5, n);
+  const xTicks = Array.from({ length: xTickCount }, (_, i) => {
+    const idx = Math.round((i / (xTickCount - 1 || 1)) * (n - 1));
+    return { month: schedule[idx].month_number, x: toX(idx) };
+  });
+
+  // Unique x positions to avoid duplicated labels at short terms
+  const seenX = new Set();
+  const uniqueXTicks = xTicks.filter(t => {
+    const key = t.month;
+    if (seenX.has(key)) return false;
+    seenX.add(key);
+    return true;
+  });
+
+  // Determine chart stroke colour from the CSS accent variable (matches theme)
+  const LINE_COLOR  = '#2563eb';
+  const LINE_COLOR2 = '#f59e0b';  // contrast line (unused here, kept for future)
+
+  // Legend text
+  const lastRow     = schedule[schedule.length - 1];
+  const payoffMonth = lastRow.month_number;
+
+  const svgYTick = yTicks.map(t => /* html */`
+    <line x1="${PAD.left - 6}" y1="${t.y.toFixed(1)}"
+          x2="${W - PAD.right}" y2="${t.y.toFixed(1)}"
+          stroke="var(--c-border)" stroke-width="1" stroke-dasharray="4 4"/>
+    <text x="${PAD.left - 10}" y="${(t.y + 4).toFixed(1)}"
+          text-anchor="end" fill="var(--c-muted)"
+          font-family="Inter,system-ui,sans-serif" font-size="10">
+      ${t.bal >= 1000 ? '$' + Math.round(t.bal / 1000) + 'k' : '$0'}
+    </text>`).join('');
+
+  const svgXTick = uniqueXTicks.map(t => /* html */`
+    <line x1="${t.x.toFixed(1)}" y1="${PAD.top + CH}"
+          x2="${t.x.toFixed(1)}" y2="${PAD.top + CH + 5}"
+          stroke="var(--c-border)" stroke-width="1"/>
+    <text x="${t.x.toFixed(1)}" y="${PAD.top + CH + 18}"
+          text-anchor="middle" fill="var(--c-muted)"
+          font-family="Inter,system-ui,sans-serif" font-size="10">
+      Mo ${t.month}
+    </text>`).join('');
+
+  // Animated draw via stroke-dashoffset
+  // Approximate path length to animate (good enough for linear polyline)
+  const approxLen = Math.sqrt(CW * CW + CH * CH) * 1.5;
+
+  container.innerHTML = /* html */`
+    <div class="balance-chart">
+      <p class="balance-chart-title">📉 Remaining Balance Over Time</p>
+      <svg viewBox="0 0 ${W} ${H}" role="img"
+           aria-label="Line chart of remaining loan balance declining to zero over ${payoffMonth} months">
+        <!-- Grid lines + y-axis labels -->
+        ${svgYTick}
+        <!-- X-axis labels -->
+        ${svgXTick}
+        <!-- Balance line -->
+        <polyline
+          points="${points}"
+          fill="none"
+          stroke="${LINE_COLOR}"
+          stroke-width="2.5"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+          stroke-dasharray="${approxLen}"
+          stroke-dashoffset="${approxLen}"
+          style="animation: balance-line-draw 1.1s ease forwards;">
+        </polyline>
+        <!-- Start dot -->
+        <circle cx="${toX(0).toFixed(1)}" cy="${toY(principal).toFixed(1)}"
+                r="4" fill="${LINE_COLOR}" opacity="0.85"/>
+        <!-- End dot -->
+        <circle cx="${toX(n - 1).toFixed(1)}" cy="${toY(0).toFixed(1)}"
+                r="4" fill="var(--c-success)" opacity="0.9"/>
+      </svg>
+      <p class="balance-chart-sub">Balance paid off after <strong>${payoffMonth} month${payoffMonth === 1 ? '' : 's'}</strong></p>
+    </div>
+    <style>
+      @keyframes balance-line-draw {
+        to { stroke-dashoffset: 0; }
+      }
+    </style>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CSV export  (#6)
+// Triggers a browser file download of the amortization schedule as a CSV.
+// ══════════════════════════════════════════════════════════════════════════════
+function exportCSV() {
+  if (!fullSchedule.length) return;
+
+  const header = 'Month,Payment,Principal,Interest,Balance\n';
+  const rows   = fullSchedule.map(r =>
+    [r.month_number, r.payment.toFixed(2),
+     r.principal_component.toFixed(2), r.interest_component.toFixed(2),
+     r.remaining_balance.toFixed(2)].join(',')
+  ).join('\n');
+
+  const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'loansavvy-amortization.csv';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+}
+
+if (exportCsvBtn) {
+  exportCsvBtn.addEventListener('click', exportCSV);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Initialise URL-based sharing on page load  (#1)
+// ══════════════════════════════════════════════════════════════════════════════
+loadFromURL();

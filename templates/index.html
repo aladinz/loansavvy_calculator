@@ -24,6 +24,9 @@
           <span class="brand-tagline">Educational Loan Calculator</span>
         </div>
       </div>
+      <button class="btn-darkmode" id="darkmode-toggle" type="button" aria-label="Toggle dark mode">
+        <span id="darkmode-icon">🌙</span>
+      </button>
     </div>
   </header>
 
@@ -197,14 +200,20 @@
           </div>
         </section>
 
+        <!-- ── Balance over time line chart ───────────────────────────────── -->
+        <section class="balance-chart-section" aria-label="Balance over time">
+          <div id="balance-chart-container"></div>
+        </section>
+
         <!-- ── Amortization schedule ──────────────────────────────────────── -->
         <section class="amort-section" aria-label="Amortization schedule">
 
           <div class="amort-header">
             <h2 class="section-heading">Amortization Schedule</h2>
-            <button class="btn-toggle" id="toggle-table-btn" type="button">
-              Show full schedule
-            </button>
+            <div class="amort-actions">
+              <button class="btn-toggle" id="export-csv-btn" type="button">⬇ Export CSV</button>
+              <button class="btn-toggle" id="toggle-table-btn" type="button">Show full schedule</button>
+            </div>
           </div>
 
           <div class="table-wrapper" role="region" aria-label="Monthly payment schedule" tabindex="0">

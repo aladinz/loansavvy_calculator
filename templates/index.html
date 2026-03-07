@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LoanSavvy – Educational Loan Calculator</title>
+  <meta name="description" content="A free educational loan calculator that shows full amortization schedules and explains how interest accumulates over time." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Site Header
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true">⚡</span>
+        <div>
+          <span class="brand-name">LoanSavvy</span>
+          <span class="brand-tagline">Educational Loan Calculator</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Main two-column layout
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <main class="app-layout">
+
+    <!-- ── Left panel: input form ──────────────────────────────────────── -->
+    <aside class="input-panel">
+      <h2 class="panel-title">Loan Details</h2>
+
+      <form id="loan-form" novalidate autocomplete="off">
+
+        <!-- Required parameters -->
+        <div class="field-group">
+          <p class="field-group-label">Loan Parameters</p>
+
+          <div class="field">
+            <label for="principal">Loan Amount</label>
+            <div class="input-wrap input-wrap--prefix">
+              <span class="input-affix">$</span>
+              <input
+                type="number" id="principal" name="principal"
+                placeholder="400000" value="400000"
+                min="1" step="1000" required
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="annual_rate">Annual Interest Rate</label>
+            <div class="input-wrap input-wrap--suffix">
+              <input
+                type="number" id="annual_rate" name="annual_rate"
+                placeholder="3.5" value="3.5"
+                min="0" max="50" step="0.01" required
+              />
+              <span class="input-affix">%</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="years">Loan Term</label>
+            <div class="input-wrap input-wrap--suffix">
+              <input
+                type="number" id="years" name="years"
+                placeholder="15" value="15"
+                min="1" max="50" step="1" required
+              />
+              <span class="input-affix">yrs</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Optional parameters (collapsible) -->
+        <div class="field-group field-group--collapsible">
+          <button
+            type="button"
+            class="collapsible-trigger"
+            id="optional-toggle"
+            aria-expanded="false"
+            aria-controls="optional-body"
+          >
+            <span>Optional Parameters</span>
+            <span class="chevron" aria-hidden="true">›</span>
+          </button>
+
+          <div id="optional-body" class="collapsible-body" hidden>
+
+            <div class="field">
+              <label for="extra_payment">Extra Monthly Payment</label>
+              <div class="input-wrap input-wrap--prefix">
+                <span class="input-affix">$</span>
+                <input
+                  type="number" id="extra_payment" name="extra_payment"
+                  placeholder="0" value="0"
+                  min="0" step="50"
+                />
+              </div>
+              <span class="field-hint">Applied to principal every month — shortens your loan term</span>
+            </div>
+
+            <div class="field">
+              <label for="lump_amount">Lump-Sum Payment</label>
+              <div class="input-wrap input-wrap--prefix">
+                <span class="input-affix">$</span>
+                <input
+                  type="number" id="lump_amount" name="lump_amount"
+                  placeholder="0" value="0"
+                  min="0" step="500"
+                />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="lump_month">Apply Lump-Sum at Month #</label>
+              <input
+                type="number" id="lump_month" name="lump_month"
+                placeholder="e.g. 24"
+                min="1" step="1"
+              />
+              <span class="field-hint">Must be paired with an amount above — and within your loan term</span>
+            </div>
+
+          </div><!-- /collapsible-body -->
+        </div><!-- /optional field-group -->
+
+        <!-- Error message (shown on validation failure) -->
+        <div id="form-error" class="form-error" role="alert" hidden></div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn-calculate" id="calc-btn">
+          <span id="btn-label">Calculate</span>
+        </button>
+
+      </form>
+
+      <!-- How-to tip -->
+      <aside class="tip-box" aria-label="Usage tip">
+        <strong>💡 How to use</strong>
+        <p>Enter your loan details above and click <em>Calculate</em> to see a full
+        month-by-month breakdown plus educational insights about your loan.</p>
+      </aside>
+    </aside><!-- /input-panel -->
+
+    <!-- ── Right panel: results ────────────────────────────────────────── -->
+    <section
+      class="results-panel"
+      id="results"
+      aria-live="polite"
+      aria-atomic="false"
+    >
+
+      <!-- Empty-state prompt (shown before first calculation) -->
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon" aria-hidden="true">📊</div>
+        <h2>Your results will appear here</h2>
+        <p>Fill in your loan details on the left and click <strong>Calculate</strong>.</p>
+      </div>
+
+      <!-- Loading state -->
+      <div class="loading-state" id="loading-state" hidden aria-label="Calculating…">
+        <div class="spinner" aria-hidden="true"></div>
+        <span>Calculating…</span>
+      </div>
+
+      <!-- Results (injected by JS after successful API call) -->
+      <div id="results-content" hidden>
+
+        <!-- Narrative summary paragraph -->
+        <p class="results-summary" id="results-summary"></p>
+
+        <!-- ── Summary cards ────────────────────────────────────────────── -->
+        <section aria-label="Loan summary metrics">
+          <div class="cards-grid" id="cards-grid">
+            <!-- Cards injected by JS -->
+          </div>
+        </section>
+
+        <!-- ── Principal vs Interest breakdown chart ──────────────────── -->
+        <section class="split-chart-section" aria-label="Payment cost breakdown">
+          <div id="split-chart-container"></div>
+        </section>
+
+        <!-- ── Educational insights ──────────────────────────────────────── -->
+        <section class="edu-section" aria-label="Educational insights">
+          <h2 class="section-heading">Understanding Your Loan</h2>
+          <div id="edu-blocks">
+            <!-- Blocks injected by JS -->
+          </div>
+        </section>
+
+        <!-- ── Amortization schedule ──────────────────────────────────────── -->
+        <section class="amort-section" aria-label="Amortization schedule">
+
+          <div class="amort-header">
+            <h2 class="section-heading">Amortization Schedule</h2>
+            <button class="btn-toggle" id="toggle-table-btn" type="button">
+              Show full schedule
+            </button>
+          </div>
+
+          <div class="table-wrapper" role="region" aria-label="Monthly payment schedule" tabindex="0">
+            <table id="amortization-table" class="amort-table">
+              <thead>
+                <tr>
+                  <th scope="col">Month</th>
+                  <th scope="col">Payment</th>
+                  <th scope="col">Principal</th>
+                  <th scope="col">Interest</th>
+                  <th scope="col">Balance</th>
+                </tr>
+              </thead>
+              <tbody id="amortization-body">
+                <!-- Rows injected by JS -->
+              </tbody>
+            </table>
+          </div>
+
+        </section><!-- /amort-section -->
+
+      </div><!-- /results-content -->
+
+    </section><!-- /results-panel -->
+
+  </main>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Footer
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <p>LoanSavvy &mdash; For educational purposes only &mdash; Not financial advice</p>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

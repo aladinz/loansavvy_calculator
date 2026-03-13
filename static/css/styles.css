@@ -169,6 +169,22 @@ body {
   color: var(--c-text);
 }
 
+[data-theme="dark"] .input-wrap input:-webkit-autofill,
+[data-theme="dark"] .field > input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #1e293b inset !important;
+  -webkit-text-fill-color: var(--c-text) !important;
+  caret-color: var(--c-text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .input-wrap input:-webkit-autofill,
+  :root:not([data-theme="light"]) .field > input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #1e293b inset !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+    caret-color: #f1f5f9;
+  }
+}
+
 [data-theme="dark"] .collapsible-trigger {
   background: #1e293b;
 }
@@ -324,7 +340,7 @@ body {
 .input-wrap:focus-within {
   border-color: var(--c-accent);
   box-shadow: 0 0 0 3px rgba(37,99,235,.13);
-  background: #fff;
+  background: var(--c-surface);
 }
 
 .input-affix {
@@ -367,7 +383,7 @@ body {
   outline: none;
   border-color: var(--c-accent);
   box-shadow: 0 0 0 3px rgba(37,99,235,.13);
-  background: #fff;
+  background: var(--c-surface);
 }
 
 .field-hint {

@@ -87,9 +87,12 @@ function loadFromURL() {
   const extra     = p.get('extra');
   const lumpAmt   = p.get('lump_amount');
   const lumpMonth = p.get('lump_month');
-  if (extra)     document.getElementById('extra_payment').value = extra;
-  if (lumpAmt)   document.getElementById('lump_amount').value   = lumpAmt;
-  if (lumpMonth) document.getElementById('lump_month').value    = lumpMonth;
+  const down      = p.get('down_payment');
+
+  if (extra)     document.getElementById('extra_payment').value   = extra;
+  if (lumpAmt)   document.getElementById('lump_amount').value      = lumpAmt;
+  if (lumpMonth) document.getElementById('lump_month').value       = lumpMonth;
+  if (down)      document.getElementById('down_payment').value     = down;
 
   // Auto-calculate if the required trio is present
   if (principal && rate && years) {
@@ -107,11 +110,12 @@ function pushURL(payload) {
     rate:      payload.annual_rate,
     years:     payload.years,
   });
-  if (payload.extra_payment) p.set('extra', payload.extra_payment);
+  if (payload.extra_payment)    p.set('extra',        payload.extra_payment);
   if (payload.lump_sum) {
     p.set('lump_amount', payload.lump_sum.amount);
     p.set('lump_month',  payload.lump_sum.month);
   }
+  if (payload.down_payment)     p.set('down_payment', payload.down_payment);
   history.pushState({}, '', '?' + p.toString());
 }
 
@@ -168,12 +172,13 @@ form.addEventListener('submit', async (e) => {
 // Build the request payload from form values
 // ══════════════════════════════════════════════════════════════════════════════
 function buildPayload() {
-  const principal    = parseFloat(document.getElementById('principal').value);
-  const annualRate   = parseFloat(document.getElementById('annual_rate').value);
-  const years        = parseInt(document.getElementById('years').value, 10);
-  const extraPayment = parseFloat(document.getElementById('extra_payment').value) || 0;
-  const lumpAmount   = parseFloat(document.getElementById('lump_amount').value)   || 0;
-  const lumpMonth    = parseInt(document.getElementById('lump_month').value, 10)  || 0;
+  const principal      = parseFloat(document.getElementById('principal').value);
+  const annualRate     = parseFloat(document.getElementById('annual_rate').value);
+  const years          = parseInt(document.getElementById('years').value, 10);
+  const extraPayment   = parseFloat(document.getElementById('extra_payment').value) || 0;
+  const lumpAmount     = parseFloat(document.getElementById('lump_amount').value)   || 0;
+  const lumpMonth      = parseInt(document.getElementById('lump_month').value, 10)  || 0;
+  const downPayment    = parseFloat(document.getElementById('down_payment').value)  || 0;
 
   // ── Required field validation ──────────────────────────────────────────────
   if (isNaN(principal) || principal <= 0) {
@@ -192,6 +197,11 @@ function buildPayload() {
   // ── Optional field validation ──────────────────────────────────────────────
   if (extraPayment < 0) {
     showError('Extra monthly payment cannot be negative.');
+    return null;
+  }
+
+  if (downPayment > 0 && downPayment >= principal) {
+    showError('Down payment must be less than the loan amount.');
     return null;
   }
 
@@ -217,7 +227,7 @@ function buildPayload() {
   // ── Build payload ──────────────────────────────────────────────────────────
   const payload = {
     principal,
-    annual_rate: annualRate,
+    annual_rate:   annualRate,
     years,
     extra_payment: extraPayment,
   };
@@ -225,6 +235,7 @@ function buildPayload() {
   if (hasLumpAmount && hasLumpMonth) {
     payload.lump_sum = { month: lumpMonth, amount: lumpAmount };
   }
+  if (downPayment > 0) payload.down_payment = downPayment;
 
   return payload;
 }
@@ -273,21 +284,31 @@ function renderResults(data) {
 // Summary cards
 // ══════════════════════════════════════════════════════════════════════════════
 function renderCards(data) {
-  const { inputs, monthly_payment, total_interest, total_paid, payoff_months } = data;
+  const { inputs, monthly_payment, total_interest, total_paid, payoff_months,
+          interest_saved, months_saved, comparison } = data;
 
-  const actualYears  = (payoff_months / 12).toFixed(1);
-  const costRatio    = (total_paid / inputs.principal).toFixed(2);
-  const baseMonths   = inputs.years * 12;
-  const savedMonths  = baseMonths - payoff_months;
+  const actualYears       = (payoff_months / 12).toFixed(1);
+  const financedPrincipal = inputs.effective_principal ?? inputs.principal;
+  const costRatio         = (total_paid / financedPrincipal).toFixed(2);
+  const baseMonths        = inputs.years * 12;
+  const savedMonths       = baseMonths - payoff_months;
 
   const cards = [
-    {
-      label: 'Principal',
-      value: fmt(inputs.principal),
-      sub:   '',
-      mod:   'accent',
-      icon:  '🏠',
-    },
+    inputs.down_payment > 0
+      ? {
+          label: 'Loan Amount',
+          value: fmt(financedPrincipal),
+          sub:   `${fmt(inputs.down_payment)} down · ${fmt(inputs.principal)} home price`,
+          mod:   'accent',
+          icon:  '🏠',
+        }
+      : {
+          label: 'Principal',
+          value: fmt(inputs.principal),
+          sub:   '',
+          mod:   'accent',
+          icon:  '🏠',
+        },
     {
       label: 'Interest Rate',
       value: `${inputs.annual_rate}%`,
@@ -332,6 +353,27 @@ function renderCards(data) {
     },
   ];
 
+  // ── Savings comparison cards (shown when the current loan beats the baseline) ──
+  const compLabel = `vs ${comparison.years}yr @ ${comparison.rate}%`;
+  if (interest_saved > 0) {
+    cards.push({
+      label: 'Interest Saved',
+      value: fmt(interest_saved),
+      sub:   compLabel,
+      mod:   'success',
+      icon:  '💰',
+    });
+  }
+  if (months_saved > 0) {
+    cards.push({
+      label: 'Months Saved',
+      value: String(months_saved),
+      sub:   compLabel,
+      mod:   'success',
+      icon:  '⏳',
+    });
+  }
+
   cardsGrid.innerHTML = cards
     .map((c, i) => /* html */`
       <div class="card${c.mod ? ' card--' + c.mod : ''}" style="--card-delay:${i * 55}ms">
@@ -357,6 +399,7 @@ const EDU_SECTIONS = [
   { key: 'principal_interest_relationship', icon: '⚖️', title: 'Principal / Interest Relationship' },
   { key: 'long_term_implications',          icon: '🔭', title: 'Long-Term Implications' },
   { key: 'term_advantage',                  icon: '⏱️', title: 'Term Advantage' },
+  { key: 'rate_savings',                    icon: '📉', title: 'The Power of a Lower Rate' },
   {
     icon: '🏦',
     title: 'Down Payment vs. Loan Amount',

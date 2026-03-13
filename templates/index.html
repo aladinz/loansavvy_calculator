@@ -132,6 +132,22 @@
               <span class="field-hint">Must be paired with an amount above — and within your loan term</span>
             </div>
 
+            <!-- ── Down Payment ─────────────────────────────────────── -->
+            <p class="field-group-label" style="margin-top:var(--sp-5);padding-top:var(--sp-4);border-top:1px solid var(--c-border);">Down Payment</p>
+
+            <div class="field">
+              <label for="down_payment">Down Payment Amount</label>
+              <div class="input-wrap input-wrap--prefix">
+                <span class="input-affix">$</span>
+                <input
+                  type="number" id="down_payment" name="down_payment"
+                  placeholder="0" value="0"
+                  min="0" step="1000"
+                />
+              </div>
+              <span class="field-hint">Subtracted from the loan amount before calculating — leave at 0 if you've already entered the net financed amount</span>
+            </div>
+
           </div><!-- /collapsible-body -->
         </div><!-- /optional field-group -->
 

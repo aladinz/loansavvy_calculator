@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -39,6 +39,7 @@ class LoanInputs(BaseModel):
     years: int = Field(..., ge=1, le=50, description="Loan term in years")
     extra_payment: float = Field(0.0, ge=0, description="Additional monthly principal payment")
     lump_sum: Optional[LumpSum] = None
+    down_payment: float = Field(0.0, ge=0, description="Down payment subtracted from principal before financing")
 
 
 # ──────────────────────────── Financial-math functions ─────────────────────────
@@ -190,21 +191,61 @@ def generate_explanations(
         ref_payment  = compute_monthly_payment(principal, annual_rate, 30)
         ref_schedule = build_amortization_schedule(principal, annual_rate, 30)
         ref_interest = round(sum(r["interest_component"] for r in ref_schedule), 2)
-        interest_saved = round(ref_interest - total_interest, 2)
+        term_interest_saved = round(ref_interest - total_interest, 2)
+        term_months_saved   = len(ref_schedule) - payoff_months
         term_advantage = (
             f"By choosing a {years}-year term instead of 30 years, you save "
-            f"${interest_saved:,.2f} in total interest. A 30-year loan on the same "
+            f"${term_interest_saved:,.2f} in total interest and pay off your loan "
+            f"{term_months_saved} months sooner. A 30-year loan on the same "
             f"${principal:,.0f} at {annual_rate}% would carry a lower monthly payment "
             f"of ${ref_payment:,.2f}, but you would pay ${ref_interest:,.2f} in "
-            f"interest over the life of the loan — ${interest_saved:,.2f} more than "
-            f"your {years}-year plan. Your shorter term keeps more money in your pocket."
+            f"interest over the life of the loan — ${term_interest_saved:,.2f} more than "
+            f"your {years}-year plan. A shorter term means a higher monthly payment, "
+            f"but every extra dollar goes straight to reducing your balance, not to "
+            f"the lender. Your shorter term keeps more money in your pocket."
         )
     else:
+        ref_payment_15  = compute_monthly_payment(principal, annual_rate, 15)
+        ref_schedule_15 = build_amortization_schedule(principal, annual_rate, 15)
+        ref_interest_15 = round(sum(r["interest_component"] for r in ref_schedule_15), 2)
+        term_interest_saved = round(total_interest - ref_interest_15, 2)
+        extra_per_month     = round(ref_payment_15 - monthly_payment, 2)
         term_advantage = (
-            f"You have selected a {years}-year term. For a shorter-term comparison, "
-            f"consider re-running the calculator with a 15-year term to see how much "
-            f"interest you could save — the higher monthly payment often pays for "
-            f"itself many times over in reduced interest."
+            f"You have selected a {years}-year term. Consider what a 15-year term would "
+            f"look like: your monthly payment would rise by ${extra_per_month:,.2f} "
+            f"(to ${ref_payment_15:,.2f}), but you would save ${term_interest_saved:,.2f} "
+            f"in total interest and be debt-free 15 years earlier. "
+            f"That extra monthly payment often pays for itself many times over — "
+            f"try re-running the calculator with a 15-year term to see the full numbers."
+        )
+
+    # ── Section 5: Rate Savings ────────────────────────────────────────────────
+    if annual_rate > 0:
+        lower_rate          = max(round(annual_rate - 1.0, 2), 0.01)
+        lower_schedule      = build_amortization_schedule(principal, lower_rate, years)
+        lower_interest      = round(sum(r["interest_component"] for r in lower_schedule), 2)
+        rate_interest_saved = round(total_interest - lower_interest, 2)
+        lower_payment       = compute_monthly_payment(principal, lower_rate, years)
+        monthly_diff        = round(monthly_payment - lower_payment, 2)
+        rate_savings = (
+            f"Your interest rate has a powerful long-term impact. At your current "
+            f"{annual_rate}% rate you will pay ${total_interest:,.2f} in total interest "
+            f"over {years} years. If your rate were just 1% lower — at {lower_rate}% — "
+            f"your monthly payment would fall by ${monthly_diff:,.2f} "
+            f"(down to ${lower_payment:,.2f}) and you would save "
+            f"${rate_interest_saved:,.2f} in total interest over the life of the loan. "
+            f"Even a quarter-point reduction adds up to thousands of dollars over time. "
+            f"This is why shopping around for the best rate before signing, and "
+            f"improving your credit score in the months leading up to your application, "
+            f"is one of the highest-leverage financial moves you can make."
+        )
+    else:
+        rate_savings = (
+            f"You are modeling a 0% interest loan. In practice, even a 1% annual rate on a "
+            f"${principal:,.0f} loan adds roughly ${round(principal * 0.01 / 12, 2):,.2f} "
+            f"in interest every month at the start. A lower rate always means less money "
+            f"paid to the lender and more staying in your pocket — so negotiating or "
+            f"shopping for the lowest possible rate is always worthwhile."
         )
 
     return {
@@ -213,6 +254,7 @@ def generate_explanations(
         "principal_interest_relationship": pi_relationship,
         "long_term_implications": long_term,
         "term_advantage": term_advantage,
+        "rate_savings": rate_savings,
     }
 
 
@@ -231,27 +273,45 @@ async def calculate(loan: LoanInputs):
       - Summary numbers (monthly_payment, total_interest, total_paid, payoff_months)
       - Full amortization_schedule (list of monthly rows)
       - Educational explanations (4 sections + narrative summary)
+      - Savings comparison (interest_saved, months_saved vs a baseline scenario)
     """
+    # Validate down payment
+    if loan.down_payment >= loan.principal:
+        raise HTTPException(
+            status_code=422,
+            detail="Down payment must be less than the loan principal.",
+        )
+
     # Convert lump_sum Pydantic model to a plain dict for the math functions
     lump_sum_dict: Optional[dict] = None
     if loan.lump_sum:
         lump_sum_dict = {"month": loan.lump_sum.month, "amount": loan.lump_sum.amount}
 
+    # Effective principal after subtracting down payment
+    effective_principal = round(loan.principal - loan.down_payment, 2)
+
     schedule = build_amortization_schedule(
-        principal=loan.principal,
+        principal=effective_principal,
         annual_rate=loan.annual_rate,
         years=loan.years,
         extra_payment=loan.extra_payment,
         lump_sum=lump_sum_dict,
     )
 
-    monthly_payment = compute_monthly_payment(loan.principal, loan.annual_rate, loan.years)
+    monthly_payment = compute_monthly_payment(effective_principal, loan.annual_rate, loan.years)
     total_interest  = round(sum(row["interest_component"] for row in schedule), 2)
     total_paid      = round(sum(row["payment"] for row in schedule), 2)
     payoff_months   = len(schedule)
 
+    # ── Savings vs 30-year baseline (always auto-computed, same rate) ───────────
+    baseline_schedule = build_amortization_schedule(effective_principal, loan.annual_rate, 30)
+    baseline_interest = round(sum(r["interest_component"] for r in baseline_schedule), 2)
+    baseline_months   = len(baseline_schedule)
+    interest_saved    = round(baseline_interest - total_interest, 2)
+    months_saved      = baseline_months - payoff_months
+
     explanations = generate_explanations(
-        principal=loan.principal,
+        principal=effective_principal,
         annual_rate=loan.annual_rate,
         years=loan.years,
         monthly_payment=monthly_payment,
@@ -262,16 +322,24 @@ async def calculate(loan: LoanInputs):
 
     return {
         "inputs": {
-            "principal": loan.principal,
-            "annual_rate": loan.annual_rate,
-            "years": loan.years,
-            "extra_payment": loan.extra_payment,
-            "lump_sum": lump_sum_dict,
+            "principal":           loan.principal,
+            "annual_rate":         loan.annual_rate,
+            "years":               loan.years,
+            "extra_payment":       loan.extra_payment,
+            "lump_sum":            lump_sum_dict,
+            "down_payment":        loan.down_payment,
+            "effective_principal": effective_principal,
         },
-        "monthly_payment": monthly_payment,
-        "total_interest": total_interest,
-        "total_paid": total_paid,
-        "payoff_months": payoff_months,
+        "monthly_payment":  monthly_payment,
+        "total_interest":   total_interest,
+        "total_paid":       total_paid,
+        "payoff_months":    payoff_months,
+        "interest_saved":   interest_saved,
+        "months_saved":     months_saved,
+        "comparison": {
+            "rate":  loan.annual_rate,
+            "years": 30,
+        },
         "amortization_schedule": schedule,
-        "explanations": explanations,
+        "explanations":          explanations,
     }
